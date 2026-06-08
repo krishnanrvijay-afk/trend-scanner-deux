@@ -59,7 +59,7 @@
   .scan-status .ts  { color: #00ff88; }
   .scan-status .cd  { color: #ffaa00; }
 
-  /* ── J BOUNCE MAP BANNER ── */
+  /* ── J TREND MAP BANNER ── */
   @keyframes jb-conf-pulse   { 0%,100% { text-shadow: 0 0 4px currentColor; } 50% { text-shadow: 0 0 14px currentColor; } }
   @keyframes jb-dot-pulse    { 0%,100% { box-shadow: 0 0 3px rgba(255,170,0,0.5); } 50% { box-shadow: 0 0 7px rgba(255,170,0,0.9); } }
   @keyframes conf-long-glow  { 0%,100% { box-shadow: 0 0 18px rgba(0,230,118,0.15),0 2px 8px rgba(0,0,0,0.6); } 50% { box-shadow: 0 0 32px rgba(0,230,118,0.3),0 2px 8px rgba(0,0,0,0.6); } }
@@ -467,12 +467,29 @@
   .blue  { color: #66aaff; }
   .grey  { color: #555; }
   .white { color: #fff; }
+
+  /* ── MARKET HEALTH STRIP ── */
+  #mh-strip { display:flex; align-items:center; gap:12px; padding:8px 24px; background:#0a0a0a; border-bottom:1px solid #1a1a1a; flex-wrap:wrap; }
+  .mh-heading { font-family:'Bebas Neue',sans-serif; font-size:11px; letter-spacing:2px; color:#555; white-space:nowrap; }
+  .mh-cols { display:flex; align-items:center; gap:8px; flex:1; flex-wrap:wrap; }
+  .mh-side-label { font-family:'JetBrains Mono',monospace; font-size:8px; font-weight:800; letter-spacing:1px; color:#666; white-space:nowrap; }
+  .mh-col { display:flex; align-items:center; gap:8px; padding:4px 10px; border-radius:4px; border:1px solid #1a1a1a; flex:1; min-width:180px; }
+  .mh-col-run     { background:rgba(0,230,118,0.06);  border-color:rgba(0,230,118,0.25); }
+  .mh-col-caution { background:rgba(255,170,0,0.06);  border-color:rgba(255,170,0,0.25); }
+  .mh-col-halt    { background:rgba(255,68,68,0.08);  border-color:rgba(255,68,68,0.35); }
+  .mh-badge { font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:2px; white-space:nowrap; }
+  .mh-col-run     .mh-badge { color:#00e676; }
+  .mh-col-caution .mh-badge { color:#ffaa00; }
+  .mh-col-halt    .mh-badge { color:#ff4444; }
+  .mh-rec { font-size:10px; color:#888; flex:1; }
+  .mh-metrics { font-family:'JetBrains Mono',monospace; font-size:9px; color:#444; white-space:nowrap; }
+  .mh-divider { width:1px; height:28px; background:#1a1a1a; }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <div class="logo">TREND SCANNER <span>II</span></div>
+  <div class="logo">BOUNCE SCANNER <span>II</span></div>
   <div class="header-right">
     <div class="hstat">
       <div class="hstat-label">DAILY P&L</div>
@@ -523,10 +540,30 @@
   <div class="scan-status" id="scan-status">waiting for scan…</div>
 </div>
 
+<!-- ── MARKET HEALTH STRIP ── -->
+<div id="mh-strip">
+  <span class="mh-heading">&#x1F4CA; MARKET HEALTH</span>
+  <div class="mh-cols">
+    <span class="mh-side-label">SHORT</span>
+    <div class="mh-col mh-col-caution" id="mh-short">
+      <div class="mh-badge">CAUTION</div>
+      <div class="mh-rec">Initialising&hellip;</div>
+      <div class="mh-metrics"></div>
+    </div>
+    <div class="mh-divider"></div>
+    <span class="mh-side-label">LONG</span>
+    <div class="mh-col mh-col-caution" id="mh-long">
+      <div class="mh-badge">CAUTION</div>
+      <div class="mh-rec">Initialising&hellip;</div>
+      <div class="mh-metrics"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ── J15M OPPORTUNITY BANNER ── -->
 <div id="j15m-banner">
   <div class="jb-header">
-    <span class="jb-title">J — TREND MAP</span>
+    <span class="jb-title">J — BOUNCE MAP</span>
     <div class="jb-header-right">
       <div class="jb-legend">
         <span class="jb-leg jb-leg-green"><span class="jb-ldot" style="background:#00e676"></span>OS</span>

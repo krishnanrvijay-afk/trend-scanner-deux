@@ -41,6 +41,7 @@ from scanner import (
     run_full_scan, scan_pair_state, get_pending,
     get_scan_count, set_close_cooldown, clear_cooldown,
     get_cooldown_remaining, clear_all_scanner_state, log_startup_config,
+    compute_market_health, get_session_name,
 )
 import scanner as _scanner_mod  # direct access to _cooldowns dict for persistence
 
@@ -66,6 +67,7 @@ class AppState:
         self.trades_opened:        int               = 0
         self.last_scan_at:         Optional[int]     = None
         self.scan_snapshots:       dict              = {}  # symbol -> last 3 scan snapshots
+        self.market_health:        dict              = {}
 
     @property
     def slots_used(self) -> int:
@@ -167,6 +169,7 @@ class AppState:
             "last_scan_at":     self.last_scan_at,
             "price_changes":    self.price_changes,
             "deploy_time":      DEPLOY_TIME,
+            "market_health":    self.market_health,
         }
 
 
@@ -402,6 +405,73 @@ def _append_trade_log(trade: dict, exit_price: float, reason: str, pnl: float, r
             print(f"[PERSIST] trade_log insert error: {_e}")
 
 
+
+# ── Paper trade Supabase logging ─────────────────────────────────────────────
+
+async def _save_paper_trade(trade: dict, alert: dict):
+    """Insert a row into trend_paper_trades when a paper trade opens."""
+    if not PAPER_MODE or not supabase:
+        return
+    try:
+        row = {
+            "pair":          trade["symbol"],
+            "direction":     trade["direction"],
+            "score":         alert.get("score"),
+            "tier":          trade.get("tier"),
+            "is_score10":    trade.get("is_score10", False),
+            "leverage":      trade.get("leverage"),
+            "margin":        trade.get("margin"),
+            "entry_price":   trade.get("entry_price"),
+            "sl_price":      trade.get("sl_price"),
+            "tp1_price":     trade.get("tp1_price"),
+            "tp2_price":     trade.get("tp2_price"),
+            "sl_pct":        round(trade.get("sl_dist", 0) / trade.get("entry_price", 1), 6)
+                             if trade.get("entry_price") else None,
+            "adx":           alert.get("adx1h"),
+            "trend":         alert.get("trend"),
+            "j_value":       alert.get("j15m"),
+            "rsi":           alert.get("rsi15m"),
+            "fired_at":      datetime.fromtimestamp(
+                                 trade.get("opened_at", int(time.time())), tz=timezone.utc
+                             ).isoformat(),
+            "session":       trade.get("session", ""),
+            "paper_mode":    True,
+            "status":        "OPEN",
+        }
+        await asyncio.to_thread(
+            lambda: supabase.table("trend_paper_trades").insert(row).execute()
+        )
+    except Exception as e:
+        print(f"[PAPER LOG] insert error: {e}")
+
+
+async def _update_paper_trade_close(trade: dict, exit_price: float,
+                                    reason: str, pnl: float):
+    """Update the trend_paper_trades row when a paper trade closes."""
+    if not PAPER_MODE or not supabase:
+        return
+    try:
+        opened_at = trade.get("opened_at", int(time.time()))
+        duration  = round((int(time.time()) - opened_at) / 60, 1)
+        await asyncio.to_thread(
+            lambda: supabase.table("trend_paper_trades")
+                    .update({
+                        "close_price":      exit_price,
+                        "close_reason":     reason,
+                        "pnl":              round(pnl, 2),
+                        "duration_minutes": duration,
+                        "status":           "WIN" if pnl >= 0 else "LOSS",
+                        "closed_at":        datetime.now(timezone.utc).isoformat(),
+                    })
+                    .eq("pair",      trade["symbol"])
+                    .eq("direction", trade["direction"])
+                    .eq("status",    "OPEN")
+                    .execute()
+        )
+    except Exception as e:
+        print(f"[PAPER LOG] update error: {e}")
+
+
 async def _do_open_trade(
     symbol: str, direction: str,
     margin_usdc: float, leverage: int,
@@ -460,13 +530,20 @@ async def _do_open_trade(
         "bid_pct":    alert_data.get("bid_pct")   if alert_data else None,
         "ask_pct":    alert_data.get("ask_pct")   if alert_data else None,
         "be_price":   round(entry * 1.001, 6) if direction == "LONG" else round(entry * 0.999, 6),
-        "tp1_hit":    False,
+        "tp1_hit":       False,
+        "partial_hit":   False,
+        "is_score10":    alert_data.get("is_score10", False) if alert_data else False,
+        "partial_price": alert_data.get("partial_price")     if alert_data else None,
+        "session":       alert_data.get("session", "")       if alert_data else "",
         "extreme_price": None,
     }
 
     app_state.open_trades[key] = trade
     app_state.margin_deployed += margin_usdc
     app_state.trades_opened   += 1
+
+    if PAPER_MODE and alert_data:
+        asyncio.create_task(_save_paper_trade(trade, alert_data))
 
     for a in app_state.alerts:
         if a["symbol"] == symbol and a["direction"] == direction:
@@ -485,9 +562,12 @@ async def _scan_loop():
     await asyncio.sleep(3)
     while True:
         try:
-            new_alerts = await run_full_scan(hl_client)
+            new_alerts = await run_full_scan(hl_client, market_health=app_state.market_health)
             app_state.last_scan_at = int(time.time())
             app_state.pair_states  = await scan_pair_state(hl_client)
+            app_state.market_health = compute_market_health(
+                app_state.pair_states, list(app_state.trade_log)
+            )
 
             # Capture per-pair scan snapshots for the live overlay
             for _ps in app_state.pair_states:
@@ -539,9 +619,10 @@ async def _scan_loop():
                             "[WARNING] LIVE AUTO-ENTRY ACTIVE — "
                             "LIVE_MANUAL_ENTRY_ONLY is disabled."
                         )
+                    _margin = alert.get("margin", MARGIN_PER_TRADE)
                     trade, err = await _do_open_trade(
                         sym, dir_,
-                        MARGIN_PER_TRADE, alert["leverage"],
+                        _margin, alert["leverage"],
                         alert_data=alert,
                         exchange="HL",
                     )
@@ -550,7 +631,7 @@ async def _scan_loop():
                             f"[AUTO TRADE] {sym} {dir_} opened "
                             f"tier={alert.get('tier')} lev={alert.get('leverage')}x "
                             f"entry={trade.get('entry_price')} sl={trade.get('sl_price')} "
-                            f"margin=${MARGIN_PER_TRADE:.0f}"
+                            f"margin=${_margin:.0f}"
                         )
                     elif err:
                         print(f"[AUTO TRADE] {sym} {dir_} skipped: {err}")
@@ -601,6 +682,29 @@ def _compute_r(pnl: float, trade: dict) -> float:
     return round(pnl / dollar_risk, 2) if dollar_risk else 0.0
 
 
+def _do_hc_partial_close(key: str, trade: dict, exit_price: float):
+    """HC Score-10: close 1/3 at 1.5R, move SL to entry (breakeven)."""
+    sym, direction = trade["symbol"], trade["direction"]
+    full_size = trade.get("remaining_size", trade["size"])
+    close_sz  = full_size / 3
+    entry     = trade["entry_price"]
+    pnl       = (exit_price - entry) * close_sz if direction == "LONG" \
+                else (entry - exit_price) * close_sz
+    r         = _compute_r(pnl, trade)
+    _append_trade_log(trade, exit_price, "HC_PARTIAL_1.5R", pnl, r)
+    _update_daily_pnl(pnl)
+    trade["remaining_size"] = full_size - close_sz
+    trade["partial_hit"]    = True
+    trade["sl_price"]       = entry  # move SL to breakeven
+    old_margin              = trade.get("margin", MARGIN_PER_TRADE)
+    trade["margin"]         = old_margin * 2 / 3
+    app_state.open_trades[key]    = trade
+    app_state.margin_deployed     = max(0.0, app_state.margin_deployed - old_margin / 3)
+    print(f"[HC PARTIAL] {sym} {direction} 1/3 closed at {exit_price:.6f} "
+          f"pnl=${pnl:.2f} r={r:+.2f}R — SL moved to breakeven {entry:.6f}")
+    _save_state()
+
+
 def _do_close_trade(key: str, trade: dict, exit_price: float, reason: str):
     """Synchronous internal close — no exchange call, price already known."""
     sym       = trade["symbol"]
@@ -624,6 +728,8 @@ def _do_close_trade(key: str, trade: dict, exit_price: float, reason: str):
 
     print(f"[EXIT] {sym} {direction} closed at {exit_price} reason={reason} "
           f"pnl=${pnl:.2f} r={r:+.2f}R")
+    if PAPER_MODE:
+        asyncio.create_task(_update_paper_trade_close(trade, exit_price, reason, pnl))
     _save_state()
 
 
@@ -695,6 +801,15 @@ async def _exit_monitor_loop():
                     _do_close_trade(key, trade, current, "SL")
                     continue
 
+                # ── HC early partial close at 1.5R → SL to breakeven ────────────
+                if (trade.get("is_score10") and not trade.get("partial_hit")
+                        and trade.get("partial_price")):
+                    _pp     = trade["partial_price"]
+                    _pp_hit = (is_short and current <= _pp) or (not is_short and current >= _pp)
+                    if _pp_hit:
+                        _do_hc_partial_close(key, trade, current)
+                        continue
+
                 # ── TP1 (always checked first — partial close, half position) ────
                 if not tp1_hit and tp1_price:
                     tp1_reached = (is_short and current <= tp1_price) or \
@@ -716,6 +831,20 @@ async def _exit_monitor_loop():
                     if tp2_reached:
                         _do_close_trade(key, trade, current, "TP2")
                         continue
+
+                # HC trailing SL after tp1_hit: lock 1.5R minimum profit
+                if trade.get("is_score10") and tp1_hit:
+                    _sl_d = trade.get("sl_dist") or 0
+                    if _sl_d > 0:
+                        _ent   = trade["entry_price"]
+                        _lock  = (_ent + 1.5 * _sl_d if not is_short else _ent - 1.5 * _sl_d)
+                        _ep    = trade.get("extreme_price") or current
+                        _trail = (_ep - 2.0 * _sl_d if not is_short else _ep + 2.0 * _sl_d)
+                        _nsl   = (max(_lock, _trail) if not is_short else min(_lock, _trail))
+                        if sl_price and ((not is_short and _nsl > sl_price) or
+                                        (is_short and _nsl < sl_price)):
+                            trade["sl_price"] = round(_nsl, 6)
+                            app_state.open_trades[key]["sl_price"] = round(_nsl, 6)
 
                 # No exit this cycle
                 print(f"[EXIT CHECK] {sym} {direction} price={current} "
