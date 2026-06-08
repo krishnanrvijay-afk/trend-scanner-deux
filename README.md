@@ -2,7 +2,7 @@
 **TREND SCANNER II** — TC (Trend Continuation) scanner for Hyperliquid
 
 Derived from [bounce-scanner-deux](https://github.com/krishnanrvijay-afk/bounce-scanner-deux).
-Fork relationship preserved via upstream remote:
+Fork relationship via upstream remote:
 
 ```bash
 git remote add upstream https://github.com/krishnanrvijay-afk/bounce-scanner-deux
@@ -11,15 +11,16 @@ git merge upstream/main --allow-unrelated-histories
 ```
 
 ## What changed vs bounce-scanner-deux
-- **Scoring**: `score_bounce_long/short` → `score_trend_continuation_long/short` (7-point TC scoring, threshold 5/7)
-- **Pairs**: BTC ETH SOL XRP DOGE SUI NEAR OP APT LINK (HL research pairs)
-- **Dashboard**: TREND SCANNER II title
-- **Supabase tables**: `trend_scanner_state`, `trend_trade_log` (isolated from bounce_ tables)
-- **TP targets**: 2R TP1, 3R TP2 (wider than bounce 1R/1.5R)
-- **rsi_5m_prev cache**: P4 (RSI directional) requires two consecutive scans to populate
+| File | Change |
+|---|---|
+| `scanner.py` | Replaced `score_bounce_long/short` with `score_trend_continuation_long/short` (7-point TC, threshold 5/7); added `_rsi_5m_prev` cache for P4 directional RSI |
+| `config.py` | PAIRS = BTC ETH SOL XRP DOGE SUI NEAR OP APT LINK; added `TC_SCORE_THRESHOLD = 5`; TP 2R/3R |
+| `main.py` | Supabase tables → `trend_scanner_state`, `trend_trade_log`; CSV → `trend_trade_log_*.csv` |
+| `templates/dashboard.html` | Title + logo → TREND SCANNER II; J-map label → TREND MAP |
+| `Procfile` | Added for Railway: `uvicorn main:app --host 0.0.0.0 --port $PORT` |
 
 ## Supabase tables
-Both scanners share the same Supabase project but use distinct table prefixes:
+Both scanners share one Supabase project, isolated by prefix:
 
 | Scanner | State table | Trade log table |
 |---|---|---|
@@ -33,6 +34,6 @@ Required environment variables:
 ```
 SUPABASE_URL=
 SUPABASE_KEY=
-HL_PRIVATE_KEY=          # only needed for live trading
+HL_PRIVATE_KEY=          # only needed for live trading (PAPER_MODE=False)
 HL_WALLET_ADDRESS=       # only needed for live trading
 ```
