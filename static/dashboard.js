@@ -1,4 +1,4 @@
-/* ── Bounce Scanner II — dashboard.js ──────────────────────────────────────── */
+/* ── Trend Scanner II — dashboard.js ──────────────────────────────────────── */
 let STATE        = null;
 let activeFilter = 'ALL';
 let activeTab    = 'grid';
@@ -93,11 +93,43 @@ function updateScanStatus() {
 }
 
 // ── Master render ─────────────────────────────────────────────────────────────
+
+// ── Market Health strip ───────────────────────────────────────────────────────
+function renderMarketHealth() {
+  const mh = STATE?.market_health;
+  const colCls = st => 'mh-col mh-col-' + (st || 'caution').toLowerCase();
+  const rec = (st, side) => {
+    if (st === 'RUN')     return side === 'SHORT' ? 'TC and Trend SHORTs clear' : 'TC and Trend LONGs clear';
+    if (st === 'CAUTION') return side === 'SHORT' ? 'Avoid new SHORTs — reversal risk' : 'Avoid new LONGs — momentum weak';
+    if (st === 'HALT')    return 'No new entries — protect open positions';
+    return 'Initialising…';
+  };
+  const metStr = (isBear) => {
+    if (!mh) return '';
+    const n   = isBear ? (mh.bear_count ?? 0) : (mh.bull_count ?? 0);
+    const lbl = isBear ? 'Bearish' : 'Bullish';
+    const slN = Math.round((mh.sl_rate || 0) * 6);
+    return `${lbl} ${n}/${mh.total || '?'} pairs • ADX avg ${(mh.avg_adx||0).toFixed(1)} • J5 avg ${(mh.avg_j5||0).toFixed(1)} • SL rate ${slN}/6`;
+  };
+  const renderSide = (elId, status, side, isBear) => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.className = colCls(status);
+    el.innerHTML =
+      `<div class="mh-badge">${status || 'CAUTION'}</div>` +
+      `<div class="mh-rec">${rec(status, side)}</div>` +
+      `<div class="mh-metrics">${metStr(isBear)}</div>`;
+  };
+  renderSide('mh-short', mh?.short_status || 'CAUTION', 'SHORT', true);
+  renderSide('mh-long',  mh?.long_status  || 'CAUTION', 'LONG',  false);
+}
+
 function render() {
   renderHeader();
   updateNavCounts();
   updateScanStatus();
   renderBanner();
+  renderMarketHealth();
   if (activeTab === 'grid')   renderCards();
   if (activeTab === 'alerts') renderAlertsTab();
   if (activeTab === 'pos')    renderPositionsTab();
@@ -175,8 +207,8 @@ function renderCards() {
   const filtered = pairs.filter(p => {
     if (activeFilter === 'ALL')          return true;
     if (activeFilter === 'ALERTS')       return alerts.some(a => a.symbol === p.symbol);
-    if (activeFilter === 'BOUNCE_SHORT') return p.short_score === 4;
-    if (activeFilter === 'BOUNCE_LONG')  return p.long_score  === 4;
+    if (activeFilter === 'TREND_SHORT') return p.short_score === 4;
+    if (activeFilter === 'TREND_LONG')  return p.long_score  === 4;
     if (activeFilter === 'COOLDOWN')     return p.cooldown_short > 0 || p.cooldown_long > 0;
     return true;
   });
@@ -517,8 +549,8 @@ function buildAlertCard(a, trades, pairMap) {
 
   // ── Header badges ─────────────────────────────────────────────────────────
   const dirPill = isShort
-    ? '<span class="ac-dir dir-short">BOUNCE SHORT</span>'
-    : '<span class="ac-dir dir-long">BOUNCE LONG</span>';
+    ? '<span class="ac-dir dir-short">TREND SHORT</span>'
+    : '<span class="ac-dir dir-long">TREND LONG</span>';
   const tierCls = a.tier === 'HIGH_PROB' ? 'tp-high' : a.tier === 'STRONG' ? 'tp-strong' : 'tp-regular';
   const tierLbl = a.tier === 'HIGH_PROB' ? 'HIGH PROB' : a.tier === 'STRONG' ? 'STRONG' : 'REGULAR';
 
@@ -754,7 +786,7 @@ function buildPosCard(t, prices, pairStates) {
       <span class="pcv2-sym">${sym}</span>
       <span class="pcv2-dir" style="color:${dirCol};border-color:${dirCol}">${t.direction}</span>
       <span style="color:#ffaa00;font-size:13px;line-height:1">★</span>
-      <span class="pcv2-sig">Bounce</span>
+      <span class="pcv2-sig">Trend</span>
       <span style="font-size:11px;font-weight:700;color:${dirCol}">${cond}</span>
       ${score ? `<span class="pcv2-sc">${score}pts</span>` : ''}
     </div>
@@ -1390,7 +1422,7 @@ function _ovRender(pn, d) {
   let dirBadge = '';
   if (alert || state === 'IN_TRADE') {
     const dl = dir === 'LONG' ? 'pov-dir-l' : 'pov-dir-s';
-    dirBadge = `<span class="pov-badge ${dl}">BOUNCE ${dir||''}</span>`;
+    dirBadge = `<span class="pov-badge ${dl}">TREND ${dir||''}</span>`;
   }
   let confBadge = '';
   if (d.confluence_long || d.confluence_short)
