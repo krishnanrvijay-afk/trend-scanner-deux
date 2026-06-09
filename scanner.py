@@ -137,12 +137,29 @@ def _compute_vol_ma(candles: list[dict], period: int) -> Optional[float]:
         return None
     return sum(vols[-period:]) / period
 
-def _trend_from_ma(price: float, ma10: Optional[float], ma30: Optional[float], ma60: Optional[float]) -> str:
-    if ma10 and ma30 and ma60:
-        if price > ma10 > ma30 > ma60:
-            return "Strong Bull"
-        if price < ma10 < ma30 < ma60:
-            return "Strong Bear"
+def _trend_from_ma(price: float, candles_5m: list, candles_15m: list, candles_1h: list, adx_1h: float = 0.0) -> str:
+    """Multi-timeframe MA consensus: 5M, 15M, 1H each vote BULL/BEAR/NEUTRAL."""
+    def _vote(candles: list, p: float) -> str:
+        ma5  = _compute_ma(candles, 5)
+        ma10 = _compute_ma(candles, 10)
+        ma30 = _compute_ma(candles, 30)
+        if ma5 and ma10 and ma30:
+            if ma5 > ma10 > ma30 and p > ma10:
+                return "BULL"
+            if ma5 < ma10 < ma30 and p < ma10:
+                return "BEAR"
+        return "NEUTRAL"
+    votes   = [_vote(candles_5m, price), _vote(candles_15m, price), _vote(candles_1h, price)]
+    bull_tf = votes.count("BULL")
+    bear_tf = votes.count("BEAR")
+    if bull_tf == 3 and adx_1h >= 25:
+        return "Strong Bull"
+    if bull_tf >= 2:
+        return "Bullish"
+    if bear_tf == 3 and adx_1h >= 25:
+        return "Strong Bear"
+    if bear_tf >= 2:
+        return "Bearish"
     return "Neutral"
 
 
@@ -628,10 +645,8 @@ async def run_full_scan(hl_client, market_health: Optional[dict] = None) -> list
             atr15m     = _compute_atr(candles_15m)
             atr1h      = _compute_atr(candles_1h)
             adx1h      = _compute_adx(candles_1h)
-            ma10       = _compute_ma(candles_1h, 10)
-            ma30       = _compute_ma(candles_1h, 30)
             ma60       = _compute_ma(candles_1h, 60)
-            trend      = _trend_from_ma(price, ma10, ma30, ma60)
+            trend      = _trend_from_ma(price, candles_5m, candles_15m, candles_1h, adx1h)
             bid_pct, ask_pct = _depth_pcts(book)
 
             vol_15m    = candles_15m[-1]["volume"] if candles_15m else 0
@@ -816,10 +831,8 @@ async def scan_pair_state(hl_client) -> list[dict]:
             rsi1h      = _compute_rsi(candles_1h)
             atr15m     = _compute_atr(candles_15m)
             adx1h      = _compute_adx(candles_1h)
-            ma10       = _compute_ma(candles_1h, 10)
-            ma30       = _compute_ma(candles_1h, 30)
             ma60       = _compute_ma(candles_1h, 60)
-            trend      = _trend_from_ma(price, ma10, ma30, ma60)
+            trend      = _trend_from_ma(price, candles_5m, candles_15m, candles_1h, adx1h)
             bid_pct, ask_pct = _depth_pcts(book)
 
             _ps_ind5m = {

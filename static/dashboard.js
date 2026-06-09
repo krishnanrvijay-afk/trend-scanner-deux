@@ -97,61 +97,62 @@ function updateScanStatus() {
 // ── Market Health strip ───────────────────────────────────────────────────────
 function renderMarketHealth() {
   const mh = STATE?.market_health;
-  const colCls = st => 'mh-col mh-col-' + (st || 'caution').toLowerCase();
+  const pillCls = st => 'mh-pill mh-pill-' + (st || 'caution').toLowerCase();
+  const compCls = st => 'mh-companion mh-comp-' + (st || 'caution').toLowerCase();
 
-  // Change 1: dynamic context lines derived from live market_health data
   const context = (status, side, mh) => {
     if (!mh) return '<div class="mh-ctx-line">Initialising…</div>';
     const isBear = side === 'SHORT';
     const ratio  = isBear ? (mh.bear_ratio ?? 0) : (mh.bull_ratio ?? 0);
     const total  = mh.total || 10;
     const pCount = Math.round(ratio * total);
-    const lbl    = isBear ? 'Bear' : 'Bull';
+    const lbl    = isBear ? 'bear' : 'bull';
     const adx    = mh.avg_adx || 0;
     const j5     = mh.avg_j5  || 50;
     const slN    = Math.round((mh.sl_rate || 0) * 6);
     if (status === 'RUN') {
-      return '<div class="mh-ctx-line">✓ All conditions met — ready to fire</div>';
+      return '<div class="mh-ctx-line">All conditions met</div>' +
+             '<div class="mh-ctx-line">Signals clear — ready to fire</div>';
     }
     if (status === 'HALT') {
       const lines = [];
       if (ratio < 0.3)
-        lines.push(`${lbl} pairs: ${pCount}/${total} → need ${Math.ceil(total * 0.3)}+`);
+        lines.push(`${lbl} pairs ${pCount} of ${total} — need ${Math.ceil(total * 0.3)}+`);
       if ((mh.sl_rate || 0) >= 0.6)
-        lines.push(`SL rate: ${slN}/6 → too high (≥4)`);
+        lines.push(`SL rate ${slN}/6 — too high`);
       if (isBear  && j5 >= 85 && ratio < 0.5)
-        lines.push(`Avg J5: ${j5.toFixed(1)} → overbought + bears < 50%`);
+        lines.push(`Avg J5 ${j5.toFixed(1)} overbought + bears below 50%`);
       if (!isBear && j5 <= 15 && ratio < 0.5)
-        lines.push(`Avg J5: ${j5.toFixed(1)} → oversold + bulls < 50%`);
+        lines.push(`Avg J5 ${j5.toFixed(1)} oversold + bulls below 50%`);
       if (!lines.length) lines.push('Market conditions unsafe');
-      return lines.map(l => `<div class="mh-ctx-line">${l}</div>`).join('');
+      return lines.slice(0, 2).map(l => `<div class="mh-ctx-line">${l}</div>`).join('');
     }
-    // CAUTION — show what is missing for RUN
     const lines = [];
     if (ratio < 0.6)
-      lines.push(`${lbl} pairs: ${pCount}/${total} → need ${Math.ceil(total * 0.6)}+`);
+      lines.push(`Need ${lbl} ratio 0.6 — currently ${ratio.toFixed(2)}`);
     if (adx < 35)
-      lines.push(`Avg ADX: ${adx.toFixed(1)} → need 35`);
+      lines.push(`Need avg ADX 35 — currently ${adx.toFixed(1)}`);
     if (isBear && j5 > 70)
-      lines.push(`Avg J5: ${j5.toFixed(1)} → need ≤70`);
+      lines.push(`Need avg J5 ≤70 — currently ${j5.toFixed(1)}`);
     if (!isBear && j5 < 30)
-      lines.push(`Avg J5: ${j5.toFixed(1)} → need ≥30`);
+      lines.push(`Need avg J5 ≥30 — currently ${j5.toFixed(1)}`);
     if ((mh.sl_rate || 0) >= 0.4)
-      lines.push(`SL rate: ${slN}/6 → need <3`);
+      lines.push(`SL rate ${slN}/6 — need below 3`);
     if (!lines.length) lines.push('Near RUN threshold');
-    return lines.map(l => `<div class="mh-ctx-line">${l}</div>`).join('');
+    return lines.slice(0, 2).map(l => `<div class="mh-ctx-line">${l}</div>`).join('');
   };
 
-  const renderSide = (elId, status, side, isBear) => {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    el.className = colCls(status);
-    el.innerHTML =
-      `<div class="mh-badge">${status || 'CAUTION'}</div>` +
-      `<div class="mh-ctx">${context(status, side, mh)}</div>`;
+  const renderSide = (pillId, ctxId, status, side) => {
+    const pill = document.getElementById(pillId);
+    const ctx  = document.getElementById(ctxId);
+    if (!pill || !ctx) return;
+    pill.className = pillCls(status);
+    pill.innerHTML = `<span class="mh-dir">${side}</span><span class="mh-state">${status || 'CAUTION'}</span>`;
+    ctx.className  = compCls(status);
+    ctx.innerHTML  = context(status, side, mh);
   };
-  renderSide('mh-short', mh?.short_status || 'CAUTION', 'SHORT', true);
-  renderSide('mh-long',  mh?.long_status  || 'CAUTION', 'LONG',  false);
+  renderSide('mh-short', 'mh-short-ctx', mh?.short_status || 'CAUTION', 'SHORT');
+  renderSide('mh-long',  'mh-long-ctx',  mh?.long_status  || 'CAUTION', 'LONG');
 }
 function render() {
   renderHeader();
@@ -1278,7 +1279,7 @@ function _ovGateBarsHtml(d, dir) {
   const j1hCol  = j1h  < 40 ? '#00e676' : j1h  > 60 ? '#ff3d57' : '#fff';
   const rsiCol  = rsi  < 35 ? '#00e676' : rsi  > 65 ? '#ff3d57' : '#fff';
   const depPct  = isL ? bid : ask;
-  const depCol  = gArr[3] ? (isL ? '#00e676' : '#ff3d57') : '#aaa';
+  const depCol  = gArr[3] ? (isL ? '#00e676' : '#ff3d57') : '#fff';
   const bidW    = Math.min(100, Math.max(0, bid));
   const askW    = Math.min(100, Math.max(0, ask));
   return `
@@ -1402,7 +1403,7 @@ function _ovScanRowsHtml(snaps) {
     const sc = (s.score_short || 0) === 4 ? '#ff3d57' : '#555';
     const jc = (s.j15m || 50) < 20 ? '#00e676' : (s.j15m || 50) > 80 ? '#ff3d57' : '#fff';
     return `<div class="pov-scan-r ${i === 0 ? 'pov-scan-fresh' : ''}">
-      <span style="color:#aaa">#${s.n}</span>
+      <span style="color:#fff">#${s.n}</span>
       <span>J:<span style="color:${jc}">${(s.j15m||0).toFixed(0)}</span></span>
       <span>RSI:<span style="color:#fff">${(s.rsi15m||0).toFixed(0)}</span></span>
       <span>B:<span style="color:${(s.bid_pct||0)>=55?'#00e676':'#555'}">${(s.bid_pct||0).toFixed(0)}%</span></span>
