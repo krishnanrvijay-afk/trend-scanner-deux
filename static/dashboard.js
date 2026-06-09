@@ -315,30 +315,23 @@ function buildCard(p, alerts, trades, changes) {
                : (trend === 'Strong Bear' || trend === 'Bearish') ? 'card-sym card-sym-conf-short'
                : 'card-sym';
 
-  // ── Inline direction rows: arrow + 4 gate dots + J15M/J1H values ─────────────
-  function dotRowJ(dir, gateArr) {
-    const isL    = dir === 'LONG';
-    const arrow  = isL ? '▲' : '▼';
-    const arCls  = isL ? 'arrow-long' : 'arrow-short';
-    const pfx    = isL ? 'long' : 'short';
-    const dots   = gateArr.map(g => `<span class="gc-dot ${pfx}-${g ? 'pass' : 'fail'}"></span>`).join('');
-    const j15Col = isL ? (j15m < 20 ? '#00e676' : '#555') : (j15m > 80 ? '#ff3d57' : '#555');
-    const j1hCol = isL ? (j1h  < 40 ? '#00e676' : '#555') : (j1h  > 60 ? '#ff3d57' : '#555');
-    return `<div class="sym-dir-row">
-      <span class="dir-arrow ${arCls}">${arrow}</span>
-      <div class="gate-cluster">${dots}</div>
-      <span class="j-inline"><span style="color:${j15Col}">${j15m.toFixed(0)}</span><span class="j-slash">/</span><span style="color:${j1hCol}">${j1h.toFixed(0)}</span></span>
-    </div>`;
-  }
-
-  let inlineDir = '';
-  if (diverge && shortCount > 0) {
-    inlineDir = `<div class="sym-dir-wrap">${dotRowJ('SHORT', shortGates)}${dotRowJ('LONG', longGates)}</div>`;
-  } else if (shortCount > longCount) {
-    inlineDir = `<div class="sym-dir-wrap">${dotRowJ('SHORT', shortGates)}</div>`;
-  } else if (longCount > shortCount) {
-    inlineDir = `<div class="sym-dir-wrap">${dotRowJ('LONG', longGates)}</div>`;
-  }
+  // ── Option B compact header — symbol · arrow · dots · price · chg% ──────────
+  const arrowColor = (trend === 'Strong Bull' || trend === 'Bullish') ? '#00ff88'
+                   : (trend === 'Strong Bear' || trend === 'Bearish') ? '#ff4444'
+                   : '#ffffff';
+  const arrowChar  = (trend === 'Strong Bull' || trend === 'Bullish') ? '▲'
+                   : (trend === 'Strong Bear' || trend === 'Bearish') ? '▼'
+                   : '·';
+  const hdrIsLong  = longCount >= shortCount;
+  const hdrGates   = hdrIsLong ? longGates : shortGates;
+  const hdrPfx     = hdrIsLong ? 'long' : 'short';
+  const headerDots = hdrGates.map(g => `<span class="gc-dot ${hdrPfx}-${g ? 'pass' : 'fail'}"></span>`).join('');
+  const j15mMetaCol = hdrIsLong
+    ? (j15m < 20 ? '#00ff88' : j15m > 80 ? '#ff4444' : '#fff')
+    : (j15m > 80 ? '#00ff88' : j15m < 20 ? '#ff4444' : '#fff');
+  const j1hMetaCol  = hdrIsLong
+    ? (j1h  < 40 ? '#00ff88' : j1h  > 60 ? '#ff4444' : '#fff')
+    : (j1h  > 60 ? '#00ff88' : j1h  < 40 ? '#ff4444' : '#fff');
 
   // ── Gate rows: RSI + DEPTH only (J moved to symbol line) ─────────────────────
   let rows = '';
@@ -408,24 +401,27 @@ function buildCard(p, alerts, trades, changes) {
   }
 
   return `<div class="${cardCls}" style="${glowStyle}">
-    <div class="card-top">
-      <div class="card-sym-block">
-        <span class="${symCls}" style="cursor:pointer" onclick="openPairOverlay('${sym}')">${sym}</span>
-        ${inlineDir}
-      </div>
-      <div class="card-right">
-        <div class="card-price-line">
-          <span class="card-price">${fmtPrice(price)}</span>${chgHtml}<span class="card-price-cd price-cd-val">${_priceCdSec}s</span>
-        </div>
-      </div>
+    <div class="card-hdr-line">
+      <span class="${symCls}" style="cursor:pointer;font-size:13px;font-weight:700;color:#fff" onclick="openPairOverlay('${sym}')">${sym}</span>
+      <span class="card-hdr-arrow" style="color:${arrowColor}">${arrowChar}</span>
+      <div class="card-hdr-dots">${headerDots}</div>
+      <span class="card-hdr-price">${fmtPrice(price)}</span>
+      ${chgHtml}
     </div>
-    <div class="card-adx-compact"><span class="adx-cl">ADX</span><span class="adx-cv" style="color:${adxColor}">${adx1h.toFixed(1)}</span></div>
+    <div class="card-meta-line">
+      <span class="card-meta-lbl">ADX</span><span class="card-meta-val" style="color:${adxColor}">${adx1h.toFixed(1)}</span>
+      <span class="card-meta-sep">·</span>
+      <span class="card-meta-lbl">J15M</span><span class="card-meta-val" style="color:${j15mMetaCol}">${j15m.toFixed(0)}</span>
+      <span class="card-meta-sep">·</span>
+      <span class="card-meta-lbl">J1H</span><span class="card-meta-val" style="color:${j1hMetaCol}">${j1h.toFixed(0)}</span>
+      <span class="card-meta-sep">·</span>
+      <span class="card-meta-age">${_priceCdSec}s</span>
+    </div>
     ${rows}
     ${confBars}
     <div class="card-footer">${pills || `<span class="pill pill-scanning">SCANNING</span>`}</div>
   </div>`;
 }
-
 function dirRow(direction, rsi15m, depthPct) {
   const isLong     = direction === 'LONG';
   const rowCls     = isLong ? 'long-row' : 'short-row';
