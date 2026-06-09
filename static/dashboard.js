@@ -1476,17 +1476,14 @@ function _ovRulerHtml(d, dir) {
 
 function _ovActionsHtml(d, state, dir, trade) {
   if (state === 'IN_TRADE' && trade) {
-    const exch = trade.exchange || 'HL';
-    return `<button class="pov-btn pov-btn-close" onclick="_ovCloseTrade('${d.symbol}','${trade.direction}')">CLOSE ${exch}</button>
+    return `<button class="pov-btn pov-btn-close" onclick="_ovCloseTrade('${d.symbol}','${trade.direction}')">CLOSE HL</button>
             <button class="pov-btn pov-btn-force" onclick="_ovCloseTrade('${d.symbol}','${trade.direction}')">FORCE CLOSE</button>`;
   }
   if (state === 'READY' && d.alert && d.alert_state !== 'STALE') {
     const lev = d.alert.leverage || 5;
-    return `<button class="pov-btn pov-btn-hl"   onclick="_ovOpen('${d.symbol}','${dir}','HL',${lev})">OPEN HL ${lev}x</button>
-            <button class="pov-btn pov-btn-mexc" onclick="_ovOpen('${d.symbol}','${dir}','MEXC',${lev})">OPEN MEXC ${lev}x</button>`;
+    return `<button class="pov-btn pov-btn-hl" onclick="_ovOpen('${d.symbol}','${dir}','HL',${lev})">OPEN HL ${lev}x</button>`;
   }
-  return `<button class="pov-btn pov-btn-watch" disabled>WATCHING HL</button>
-          <button class="pov-btn pov-btn-watch" disabled>WATCHING MEXC</button>`;
+  return `<button class="pov-btn pov-btn-watch" disabled>WATCHING HL</button>`;
 }
 
 function _ovStaleHtml(d) {
