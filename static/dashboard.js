@@ -1080,11 +1080,112 @@ function toggleStatsPanel() {
   localStorage.setItem("stats-collapsed", was ? "0" : "1");
   renderStatsPanel(STATE.trade_log || []);
 }
+// ── Per-trade visual row helpers ──────────────────────────────────────────────
+function _exitDotPct(r) {
+  var sl = r.sl_price, tp1 = r.tp1_price, exit = r.exit_price;
+  if (!sl || !tp1 || !exit) return 50;
+  var pct;
+  if (r.direction === 'LONG') {
+    pct = (exit - sl) / (tp1 - sl) * 100;
+  } else {
+    pct = (sl - exit) / (sl - tp1) * 100;
+  }
+  return Math.max(0, Math.min(100, pct));
+}
+
+function _tradeVisRow(r) {
+  var reason   = r.exit_reason || '';
+  var isWin    = reason === 'TP1' || reason === 'TP2';
+  var isSL     = reason === 'SL';
+  var badgeCls = isWin ? 'tl-badge-win' : isSL ? 'tl-badge-loss' : 'tl-badge-force';
+  var badgeTxt = isWin ? 'WIN' : isSL ? 'LOSS' : 'FORCE';
+  var rv   = r.r_value || 0;
+  var rBg  = rv < 0 ? '#7f1d1d' : rv < 0.5 ? '#1f1f1f' : rv < 1 ? '#78350f' : rv < 2 ? '#365314' : '#14532d';
+  var rStr = (rv >= 0 ? '+' : '') + rv.toFixed(1) + 'R';
+  var dotPct = _exitDotPct(r);
+  var dotBg  = dotPct >= 85 ? '#00ff88' : dotPct <= 15 ? '#ff4444' : '#ffffff';
+  return '<tr style="background:#050505;"><td colspan="14" style="padding:0 6px 6px;border-top:none;">' +
+    '<div class="tl-vis">' +
+      '<span class="tl-badge ' + badgeCls + '">' + badgeTxt + '</span>' +
+      '<span class="tl-rpill" style="background:' + rBg + '">' + rStr + '</span>' +
+      '<div class="tl-pbar-wrap" title="SL ← exit → TP1">' +
+        '<div class="tl-pdot" style="left:' + dotPct.toFixed(1) + '%;background:' + dotBg + '"></div>' +
+      '</div>' +
+    '</div>' +
+  '</td></tr>';
+}
+
+// ── Streak calculator ─────────────────────────────────────────────────────────
+function _calcStreak(log) {
+  if (!log.length) return { type: null, count: 0 };
+  var isW = function(r) { return r.exit_reason === 'TP1' || r.exit_reason === 'TP2'; };
+  var cur = isW(log[log.length - 1]) ? 'W' : 'L';
+  var count = 0;
+  for (var i = log.length - 1; i >= 0; i--) {
+    if ((isW(log[i]) ? 'W' : 'L') === cur) count++;
+    else break;
+  }
+  return { type: cur, count: count };
+}
+
+// ── Performance panel ─────────────────────────────────────────────────────────
+function renderPerfPanel(log) {
+  var el = document.getElementById('perf-panel');
+  if (!el) return;
+  if (!log.length) { el.innerHTML = ''; return; }
+
+  var isWin = function(r) { return r.exit_reason === 'TP1' || r.exit_reason === 'TP2'; };
+  var isSL  = function(r) { return r.exit_reason === 'SL'; };
+  var wins  = log.filter(isWin).length;
+  var wr    = wins / log.length * 100;
+  var netPnl= log.reduce(function(s,r){ return s + (r.pnl_usd||0); }, 0);
+  var stk   = _calcStreak(log);
+
+  var wrBg   = wr >= 60 ? '#14532d' : wr >= 40 ? '#78350f' : '#7f1d1d';
+  var pnlBg  = netPnl >= 0 ? '#14532d' : '#7f1d1d';
+  var stkBg  = stk.type === 'W' ? '#14532d' : '#7f1d1d';
+  var stkStr = stk.count > 0 ? (stk.type + stk.count) : '—';
+  var pnlStr = (netPnl >= 0 ? '+' : '') + '$' + Math.abs(netPnl).toFixed(2);
+
+  var last20 = log.slice(-20);
+  var segs   = last20.map(function(r) {
+    var c = isWin(r) ? '#166534' : isSL(r) ? '#991b1b' : '#92400e';
+    var tip = r.symbol + ' ' + (r.exit_reason||'') + ' ' + ((r.pnl_usd||0)>=0?'+':'') + '$' + Math.abs(r.pnl_usd||0).toFixed(2);
+    return '<div class="perf-seg" style="background:' + c + '" title="' + tip + '"></div>';
+  }).join('');
+
+  var best  = Math.max.apply(null, log.map(function(r){ return r.pnl_usd||0; }));
+  var worst = Math.min.apply(null, log.map(function(r){ return r.pnl_usd||0; }));
+  var avg   = log.reduce(function(s,r){ return s+(r.pnl_usd||0); }, 0) / log.length;
+  var pc    = function(v) { return v >= 0 ? '#00ff88' : '#ff4444'; };
+  var dp    = function(v) { return (v>=0?'+':'') + '$' + Math.abs(v).toFixed(2); };
+  var wrc   = wr >= 60 ? '#00ff88' : wr >= 40 ? '#ffaa00' : '#ff4444';
+
+  el.innerHTML = '<div class="perf-panel">' +
+    '<div class="perf-row1">' +
+      '<span class="perf-pill" style="background:' + wrBg + '">' + wr.toFixed(0) + '% WIN</span>' +
+      '<span class="perf-pill" style="background:' + pnlBg + '">' + pnlStr + '</span>' +
+      '<span class="perf-pill" style="background:#1a1a1a;border:1px solid #2a2a2a">' + log.length + ' TRADES</span>' +
+      '<span class="perf-pill" style="background:' + stkBg + '">' + stkStr + '</span>' +
+    '</div>' +
+    '<div class="perf-bar-lbl">LAST ' + last20.length + ' TRADES — OLDEST LEFT · NEWEST RIGHT</div>' +
+    '<div class="perf-bar-wrap">' + segs + '</div>' +
+    '<div class="perf-at">' +
+      '<div class="perf-at-item"><span class="perf-at-label">TOTAL</span><span class="perf-at-val" style="color:#fff">' + log.length + '</span></div>' +
+      '<div class="perf-at-item"><span class="perf-at-label">WIN RATE</span><span class="perf-at-val" style="color:' + wrc + '">' + wr.toFixed(1) + '%</span></div>' +
+      '<div class="perf-at-item"><span class="perf-at-label">BEST</span><span class="perf-at-val" style="color:' + pc(best) + '">' + dp(best) + '</span></div>' +
+      '<div class="perf-at-item"><span class="perf-at-label">WORST</span><span class="perf-at-val" style="color:' + pc(worst) + '">' + dp(worst) + '</span></div>' +
+      '<div class="perf-at-item"><span class="perf-at-label">AVG PNL</span><span class="perf-at-val" style="color:' + pc(avg) + '">' + dp(avg) + '</span></div>' +
+    '</div>' +
+  '</div>';
+}
+
 // ── Log tab ───────────────────────────────────────────────────────────────────
 function renderLogTab() {
   const log = STATE.trade_log || [];
   document.getElementById('log-count').textContent = `${log.length} trade${log.length!==1?'s':''}`;
   renderStatsPanel(log);
+  renderPerfPanel(log);
 
   if (!log.length) {
     document.getElementById('log-body').className = 'log-empty';
@@ -1118,7 +1219,7 @@ function renderLogTab() {
       <td style="color:#555;">${openTime}</td>
       <td style="color:#555;">${closeTime}</td>
       <td style="color:#555;">${durStr}</td>
-    </tr>`;
+    </tr>` + _tradeVisRow(r);
   }).join('');
 
   document.getElementById('log-body').className = '';

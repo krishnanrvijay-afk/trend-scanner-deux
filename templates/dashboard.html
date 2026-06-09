@@ -485,6 +485,27 @@
   .mh-comp-run     { border-color:#22c55e; }
   .mh-ctx-line { font-size:11px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.4; }
   .mh-vdivider { width:1px; background:#222; align-self:stretch; margin:12px 0; flex-shrink:0; }
+
+  /* ── TRADE LOG VISUAL ROW ── */
+  .tl-vis { display:flex; align-items:center; gap:10px; padding:3px 4px 5px; }
+  .tl-badge { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; padding:2px 8px; border-radius:3px; color:#fff; letter-spacing:0.5px; }
+  .tl-badge-win   { background:#166534; }
+  .tl-badge-loss  { background:#991b1b; }
+  .tl-badge-force { background:#92400e; }
+  .tl-rpill { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; padding:2px 8px; border-radius:3px; color:#fff; }
+  .tl-pbar-wrap { position:relative; width:80px; height:6px; border-radius:3px; background:linear-gradient(to right,#991b1b,#555,#166534); flex-shrink:0; }
+  .tl-pdot { position:absolute; top:50%; transform:translate(-50%,-50%); width:8px; height:8px; border-radius:50%; border:1.5px solid #0a0a0a; }
+  /* ── PERFORMANCE PANEL ── */
+  .perf-panel { background:#0a0a0a; border-top:1px solid #1a1a1a; padding:10px 16px 14px; }
+  .perf-row1 { display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+  .perf-pill { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; padding:4px 12px; border-radius:4px; color:#fff; white-space:nowrap; }
+  .perf-bar-lbl { font-size:8px; font-weight:800; color:#555; letter-spacing:1px; margin-bottom:5px; }
+  .perf-bar-wrap { display:flex; gap:2px; align-items:flex-end; margin-bottom:10px; flex-wrap:nowrap; overflow:hidden; }
+  .perf-seg { width:12px; height:16px; border-radius:2px; flex-shrink:0; cursor:default; }
+  .perf-at { display:flex; gap:16px; flex-wrap:wrap; }
+  .perf-at-item { display:flex; flex-direction:column; gap:2px; }
+  .perf-at-label { font-size:8px; font-weight:800; color:#555; letter-spacing:1px; text-transform:uppercase; }
+  .perf-at-val { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; }
 </style>
 </head>
 <body>
@@ -653,6 +674,7 @@
   <div class="log-table-wrap">
     <div id="log-body" class="log-empty">No closed trades yet</div>
   </div>
+  <div id="perf-panel"></div>
 </div>
 
 
