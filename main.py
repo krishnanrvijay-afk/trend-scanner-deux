@@ -1015,6 +1015,7 @@ async def get_pair(symbol: str):
         "recent_alerts":       recent_alerts,
         "confluence_long":     confluence_long,
         "confluence_short":    confluence_short,
+        "trend":               ps.get("trend"),
     }
 
 
