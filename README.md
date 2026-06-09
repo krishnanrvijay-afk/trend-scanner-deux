@@ -1,16 +1,11 @@
 # trend-scanner-deux
 **TREND SCANNER II** — TC (Trend Continuation) scanner for Hyperliquid
 
-Derived from [bounce-scanner-deux](https://github.com/krishnanrvijay-afk/bounce-scanner-deux).
-Fork relationship via upstream remote:
+trend-scanner-deux and bounce-scanner-deux are independent codebases that share a common origin
+but are maintained separately. No upstream remote. No upstream merges. No shared patches.
+Each scanner receives its own targeted changes only.
 
-```bash
-git remote add upstream https://github.com/krishnanrvijay-afk/bounce-scanner-deux
-git fetch upstream
-git merge upstream/main --allow-unrelated-histories
-```
-
-## What changed vs bounce-scanner-deux
+## Differences from bounce-scanner-deux (for reference only)
 | File | Change |
 |---|---|
 | `scanner.py` | Replaced `score_bounce_long/short` with `score_trend_continuation_long/short` (7-point TC, threshold 5/7); added `_rsi_5m_prev` cache for P4 directional RSI |

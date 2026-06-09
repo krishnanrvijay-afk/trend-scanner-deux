@@ -831,6 +831,8 @@ async def scan_pair_state(hl_client) -> list[dict]:
             rsi1h      = _compute_rsi(candles_1h)
             atr15m     = _compute_atr(candles_15m)
             adx1h      = _compute_adx(candles_1h)
+            ma10       = _compute_ma(candles_1h, 10)
+            ma30       = _compute_ma(candles_1h, 30)
             ma60       = _compute_ma(candles_1h, 60)
             trend      = _trend_from_ma(price, candles_5m, candles_15m, candles_1h, adx1h)
             bid_pct, ask_pct = _depth_pcts(book)
