@@ -293,39 +293,27 @@ function buildCard(p, alerts, trades, changes) {
   const isConf     = longConf || shortConf;
   const confIsLong = longConf;
 
-  // ── Card class + glow (trend-based — BID%/count gates not used for colour) ────
-  let cardCls = 'pair-card';
+  // ── Card glow — unified trend-based ──────────────────────────────────────────
+  const cardCls = 'pair-card';
   let glowStyle;
   const trend = p.trend || 'Neutral';
   if (inTrade) {
-    // Blue glow — open position always wins
     glowStyle = 'border:1px solid rgba(41,121,255,0.6);box-shadow:0 0 20px rgba(41,121,255,0.15),0 2px 8px rgba(0,0,0,0.6)';
-  } else if (longConf) {
-    // J-confluence confirmed LONG — animated green class
-    cardCls  += ' card-conf-long';
-    glowStyle = '';
-  } else if (shortConf) {
-    // J-confluence confirmed SHORT — animated red class
-    cardCls  += ' card-conf-short';
-    glowStyle = '';
-  } else if (diverge) {
-    // DIVERGENCE badge: trend conflicts with momentum/depth → amber warning
-    glowStyle = 'border:1px solid rgba(245,158,11,0.3);box-shadow:0 0 8px 2px rgba(245,158,11,0.5),0 2px 8px rgba(0,0,0,0.6)';
-  } else if (trend === 'Strong Bear') {
-    glowStyle = 'border:1px solid rgba(239,68,68,0.5);box-shadow:0 0 12px 3px rgba(239,68,68,0.7),0 2px 8px rgba(0,0,0,0.6)';
-  } else if (trend === 'Bearish') {
-    glowStyle = 'border:1px solid rgba(239,68,68,0.3);box-shadow:0 0 8px 2px rgba(239,68,68,0.4),0 2px 8px rgba(0,0,0,0.6)';
   } else if (trend === 'Strong Bull') {
     glowStyle = 'border:1px solid rgba(34,197,94,0.5);box-shadow:0 0 12px 3px rgba(34,197,94,0.7),0 2px 8px rgba(0,0,0,0.6)';
   } else if (trend === 'Bullish') {
     glowStyle = 'border:1px solid rgba(34,197,94,0.3);box-shadow:0 0 8px 2px rgba(34,197,94,0.4),0 2px 8px rgba(0,0,0,0.6)';
+  } else if (trend === 'Strong Bear') {
+    glowStyle = 'border:1px solid rgba(239,68,68,0.5);box-shadow:0 0 12px 3px rgba(239,68,68,0.7),0 2px 8px rgba(0,0,0,0.6)';
+  } else if (trend === 'Bearish') {
+    glowStyle = 'border:1px solid rgba(239,68,68,0.3);box-shadow:0 0 8px 2px rgba(239,68,68,0.4),0 2px 8px rgba(0,0,0,0.6)';
   } else {
-    // Neutral or unknown — no glow
     glowStyle = 'border:1px solid rgba(255,255,255,0.1);box-shadow:none';
   }
-
   // ── Symbol class for confluence name glow ────────────────────────────────────
-  const symCls = longConf ? 'card-sym card-sym-conf-long' : shortConf ? 'card-sym card-sym-conf-short' : 'card-sym';
+  const symCls = (trend === 'Strong Bull' || trend === 'Bullish') ? 'card-sym card-sym-conf-long'
+               : (trend === 'Strong Bear' || trend === 'Bearish') ? 'card-sym card-sym-conf-short'
+               : 'card-sym';
 
   // ── Inline direction rows: arrow + 4 gate dots + J15M/J1H values ─────────────
   function dotRowJ(dir, gateArr) {
@@ -599,7 +587,7 @@ function buildAlertCard(a, trades, pairMap) {
   const warnHtml = priceDriftPct > 1 ? '<span class="ac2-warn">⚠</span>' : '';
 
   // ── Metric color helpers ──────────────────────────────────────────────────
-  const j15mClr = v => v > 80 ? '#ff4444' : v < 20 ? '#00ff88' : '#ffaa00';
+  const j15mClr = v => v > 80 ? '#ff4444' : v < 20 ? '#00ff88' : '#aaa';
   const rsiClr  = v => v > 65 ? '#ff4444' : v < 35 ? '#00ff88' : '#fff';
   const adxClr  = v => v >= 50 ? '#00ff88' : v >= 25 ? '#ffaa00' : '#fff';
 
@@ -1356,13 +1344,13 @@ function _ovBorderCol(state, trend) {
   if (state === 'IN_TRADE')                                    return 'rgba(100,160,255,0.5)';
   if (trend === 'Strong Bull' || trend === 'Bullish')          return 'rgba(0,230,118,0.5)';
   if (trend === 'Strong Bear' || trend === 'Bearish')          return 'rgba(255,61,87,0.5)';
-  return 'rgba(255,170,0,0.3)';
+  return 'rgba(255,255,255,0.15)';
 }
 function _ovSymCol(state, trend) {
   if (state === 'IN_TRADE')                                    return '#66aaff';
   if (trend === 'Strong Bull' || trend === 'Bullish')          return '#00e676';
   if (trend === 'Strong Bear' || trend === 'Bearish')          return '#ff3d57';
-  return '#fff';
+  return '#aaa';
 }
 
 // ── HTML builders ─────────────────────────────────────────────────────────────
@@ -1481,11 +1469,14 @@ function _ovActionsHtml(d, state, dir, trade) {
   }
   if (state === 'READY' && d.alert && d.alert_state !== 'STALE') {
     const lev = d.alert.leverage || 5;
-    return `<button class="pov-btn pov-btn-hl" onclick="_ovOpen('${d.symbol}','${dir}','HL',${lev})">OPEN HL ${lev}x</button>`;
+    const rCol = (d.trend === 'Strong Bull' || d.trend === 'Bullish') ? '#00e676'
+               : (d.trend === 'Strong Bear' || d.trend === 'Bearish') ? '#ff3d57'
+               :                                                          '#aaa';
+    return `<button class="pov-btn pov-btn-hl" onclick="_ovOpen('${d.symbol}','${dir}','HL',${lev})" style="border-color:${rCol};color:${rCol};font-weight:700">OPEN HL ${lev}x</button>`;
   }
   const wCol = (d.trend === 'Strong Bull' || d.trend === 'Bullish') ? '#00e676'
              : (d.trend === 'Strong Bear' || d.trend === 'Bearish') ? '#ff3d57'
-             :                                                         '#ffaa00';
+             :                                                         '#aaa';
   return `<button class="pov-btn pov-btn-watch" disabled style="border-color:${wCol};color:${wCol};opacity:1;font-weight:700">WATCHING HL</button>`;
 }
 
