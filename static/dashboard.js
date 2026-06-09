@@ -1352,16 +1352,16 @@ function _ovDir(d) {
   return null;
 }
 function _ovGates(d, dir) { return dir === 'SHORT' ? d.gate_short : d.gate_long; }
-function _ovBorderCol(state, dir) {
-  if (state === 'IN_TRADE') return 'rgba(100,160,255,0.5)';
-  if (dir === 'LONG')       return 'rgba(0,230,118,0.5)';
-  if (dir === 'SHORT')      return 'rgba(255,61,87,0.5)';
-  return '#2a2a2a';
+function _ovBorderCol(state, trend) {
+  if (state === 'IN_TRADE')                                    return 'rgba(100,160,255,0.5)';
+  if (trend === 'Strong Bull' || trend === 'Bullish')          return 'rgba(0,230,118,0.5)';
+  if (trend === 'Strong Bear' || trend === 'Bearish')          return 'rgba(255,61,87,0.5)';
+  return 'rgba(255,170,0,0.3)';
 }
-function _ovSymCol(state, dir) {
-  if (state === 'IN_TRADE') return '#66aaff';
-  if (dir === 'LONG')       return '#00e676';
-  if (dir === 'SHORT')      return '#ff3d57';
+function _ovSymCol(state, trend) {
+  if (state === 'IN_TRADE')                                    return '#66aaff';
+  if (trend === 'Strong Bull' || trend === 'Bullish')          return '#00e676';
+  if (trend === 'Strong Bear' || trend === 'Bearish')          return '#ff3d57';
   return '#fff';
 }
 
@@ -1546,13 +1546,14 @@ function _ovHistHtml(hist) {
 function _ovRender(pn, d) {
   const state = _ovState(d);
   const dir   = _ovDir(d);
+  const trend = d.trend || '';
   const trade = d.in_trade_long || d.in_trade_short;
   const alert = d.alert;
 
   pn.dataset.state = state;
-  pn.style.border  = `1px solid ${_ovBorderCol(state, dir)}`;
+  pn.style.border  = `1px solid ${_ovBorderCol(state, trend)}`;
 
-  const symCol    = _ovSymCol(state, dir);
+  const symCol    = _ovSymCol(state, trend);
   const statePill = _ovStatePillHtml(state, dir);
 
   let dirBadge = '';
