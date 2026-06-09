@@ -21,6 +21,7 @@ _cooldowns:   dict[str, float] = {}   # keyed "BTCSHORT" / "BTCLONG" → expiry 
 _scan_count:  int              = 0
 _pending:     dict[str, dict]  = {}   # first-scan confirmed, awaiting 2nd
 _rsi_5m_prev: dict[str, float] = {}   # previous-scan RSI5m for directional delta
+_j5m_prev:    dict[str, float] = {}   # previous-scan J5m for directional gate
 
 
 # ── Indicator helpers ─────────────────────────────────────────────────────────
@@ -715,6 +716,38 @@ async def run_full_scan(hl_client, market_health: Optional[dict] = None) -> list
                         _last_scores.pop(key, None)
                         continue
 
+
+                # ── J1H confluence gate ───────────────────────────────────────
+                if direction == "LONG" and j1h > 40:
+                    log.info(f"[GATE] {symbol} LONG — J1H CONFLUENCE FAILED — j1h={j1h:.1f} above 40")
+                    _pending.pop(key, None)
+                    continue
+                if direction == "SHORT" and j1h < 60:
+                    log.info(f"[GATE] {symbol} SHORT — J1H CONFLUENCE FAILED — j1h={j1h:.1f} below 60")
+                    _pending.pop(key, None)
+                    continue
+
+                # ── J5M directional gate ──────────────────────────────────────
+                j5m_prev = _j5m_prev.get(symbol, j5m)
+                if direction == "LONG" and j5m <= j5m_prev:
+                    log.info(f"[GATE] {symbol} LONG — J5M DIRECTION FAILED — j5m not rising ({j5m_prev:.1f}\u2192{j5m:.1f})")
+                    _pending.pop(key, None)
+                    continue
+                if direction == "SHORT" and j5m >= j5m_prev:
+                    log.info(f"[GATE] {symbol} SHORT — J5M DIRECTION FAILED — j5m not falling ({j5m_prev:.1f}\u2192{j5m:.1f})")
+                    _pending.pop(key, None)
+                    continue
+
+                # ── Trend alignment gate ──────────────────────────────────────
+                if direction == "LONG" and trend in ("Strong Bear", "Bearish"):
+                    log.info(f"[GATE] {symbol} LONG — TREND ALIGNMENT FAILED — trend={trend}")
+                    _pending.pop(key, None)
+                    continue
+                if direction == "SHORT" and trend in ("Strong Bull", "Bullish"):
+                    log.info(f"[GATE] {symbol} SHORT — TREND ALIGNMENT FAILED — trend={trend}")
+                    _pending.pop(key, None)
+                    continue
+
                 _rsi_prev = _rsi_5m_prev.get(symbol)
                 if direction == "SHORT":
                     score, details = score_trend_continuation_short(
@@ -813,6 +846,7 @@ async def run_full_scan(hl_client, market_health: Optional[dict] = None) -> list
 
             # Update RSI directional cache after scoring this symbol
             _rsi_5m_prev[symbol] = rsi5m
+            _j5m_prev[symbol]    = j5m
 
         except Exception as e:
             log.error(f"[SCAN] {symbol} error: {e}", exc_info=True)
