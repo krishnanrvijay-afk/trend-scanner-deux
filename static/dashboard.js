@@ -1483,7 +1483,10 @@ function _ovActionsHtml(d, state, dir, trade) {
     const lev = d.alert.leverage || 5;
     return `<button class="pov-btn pov-btn-hl" onclick="_ovOpen('${d.symbol}','${dir}','HL',${lev})">OPEN HL ${lev}x</button>`;
   }
-  return `<button class="pov-btn pov-btn-watch" disabled>WATCHING HL</button>`;
+  const wCol = (d.trend === 'Strong Bull' || d.trend === 'Bullish') ? '#00e676'
+             : (d.trend === 'Strong Bear' || d.trend === 'Bearish') ? '#ff3d57'
+             :                                                         '#ffaa00';
+  return `<button class="pov-btn pov-btn-watch" disabled style="border-color:${wCol};color:${wCol};opacity:1;font-weight:700">WATCHING HL</button>`;
 }
 
 function _ovStaleHtml(d) {
